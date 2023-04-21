@@ -1,0 +1,96 @@
+@page "/blog"
+@using md = Lab6.Wasm.Models
+@inject HttpClient Http
+
+<PageTitle>Blog Entry</PageTitle>
+
+<h1>Blog Entry</h1>
+
+<input type="hidden" @bind="id">
+<input placeholder="Title" @bind="title" />
+<input placeholder="Content" @bind="content" />
+<button @onclick="AddBlogEntry">Add</button>
+
+@if (BlogE != null)
+{
+    @foreach (var entry in BlogE)
+    {
+        <md.BlogEntryView Entry="@entry" OnDelete="@DeleteAsync" OnEdit="@EditAsync" />
+        @* <h1>@entry.Title</h1> *@
+    }
+}
+
+@code {
+
+    private List<md.BlogEntry>? BlogE { get; set; } = default!;
+    private string title = string.Empty, content = string.Empty;
+
+    private uint? id = null;
+
+
+    protected override async Task OnParametersSetAsync()
+    {
+        BlogE = await Http.GetFromJsonAsync<List<md.BlogEntry>>("http://localhost:5232/api/Blog");
+        StateHasChanged();
+
+    }
+
+    public async Task RefreshEntries()
+    {
+        if (BlogE != null)
+        {
+            BlogE.Clear();
+        }
+
+        BlogE = await Http.GetFromJsonAsync<List<md.BlogEntry>>("http://localhost:5232/api/Blog");
+
+    }
+
+
+    public async Task DeleteAsync(md.BlogEntry entry)
+    {
+        await Http.DeleteAsync($"http://localhost:5232/api/Blog/{entry.BlogEntryId}");
+        await RefreshEntries();
+    }
+
+
+    public void EditAsync(md.BlogEntry entry)
+    {
+        title = entry.Title;
+        content = entry.Content;
+        id = entry.BlogEntryId;
+        //await RefreshEntries();
+    }
+
+    private async void AddBlogEntry()
+    {
+        // check if actual content
+        if (!string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(content))
+        {
+
+
+            // make blogentry object
+            var be = new md.BlogEntry { Title = title, Content = content };
+
+            // add new beo to context for tracking
+            if (id == null)
+            {
+                await Http.PostAsJsonAsync("http://localhost:5232/api/Blog/", be);
+            }
+            else
+            {
+                be.BlogEntryId = id.Value;
+                await Http.PutAsJsonAsync($"http://localhost:5232/api/Blog/{id}", be);
+            }
+            title = "";
+            content = string.Empty;
+            if (id != null)
+            {
+                id = null;
+                await RefreshEntries();
+            }
+        }
+    }
+
+
+}
